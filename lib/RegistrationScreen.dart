@@ -69,6 +69,37 @@ class _HomePageState extends State<RegistrationScreen> {
     }
   }
 
+  void checkAndShowRegistrationDialog(Uint8List croppedFace, Recognition recognition) {
+    var embeddings = recognition.embeddings;  // Giả sử embeddings là một phần của đối tượng recognition
+    Pair closestMatch = recognizer.findNearestCosine(embeddings);
+
+    // Giả sử ngưỡng là 0.7
+    if (closestMatch.distance > 0.7) {
+      // Khuôn mặt đã được đăng ký
+      showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: const Text("Notification"),
+            content: const Text("This face is already registered."),
+            actions: <Widget>[
+              TextButton(
+                child: const Text("OK"),
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+              ),
+            ],
+          );
+        },
+      );
+    } else {
+      // Hiển thị hộp thoại đăng ký khuôn mặt
+      showFaceRegistrationDialogue(croppedFace, recognition);
+    }
+  }
+
+
   //TODO face detection code here
 
   doFaceDetection() async {
@@ -107,10 +138,12 @@ class _HomePageState extends State<RegistrationScreen> {
         if (croppedFace == null)
           return;
         else {
+          //TODO perform face recognition
+
           Recognition recognition =
               recognizer.recognize(croppedFace, boundingBox);
           // print("00000 ${recognition.toString()}");
-          showFaceRegistrationDialogue(
+          checkAndShowRegistrationDialog(
               Uint8List.fromList(img.encodeBmp(croppedFace)), recognition);
         }
       }
