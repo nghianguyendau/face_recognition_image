@@ -1,6 +1,7 @@
 # face_recognition_with_images
 
-A new Flutter project.
+Nguyễn Đẩu Nghĩa.</br>
+Nguyễn Chí Công
 
 ## Getting Started
 
