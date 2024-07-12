@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "937678424107",
+    "project_id": "face-recognition-with-im-5dbec",
+    "storage_bucket": "face-recognition-with-im-5dbec.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:937678424107:android:e5220050f3dfb16962026e",
+        "android_client_info": {
+          "package_name": "com.example.face_recognition_with_images"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBNSOaZurYBwa03vtzyEEUVnkf5Frb7vxM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
