@@ -4,6 +4,7 @@ import 'package:camera/camera.dart';
 import 'package:face_recognition_with_images/ML/Recognition.dart';
 import 'package:face_recognition_with_images/ML/Recognizer.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
@@ -24,11 +25,18 @@ class _RealtimeRecognitionScreenState extends State<RealtimeRecognitionScreen> {
   late CameraDescription description = cameras[1];
   CameraLensDirection camDirec = CameraLensDirection.front;
   late List<Recognition> recognitions = [];
+  FlutterTts flutterTts = FlutterTts();
+  bool isSpeaking = false;
+  DateTime _lastSpeechTime = DateTime.now().subtract(Duration(seconds: 0));
+  DateTime lastGreetTime = DateTime.now();
 
   //TODO declare face detector
   late FaceDetector detector;
   late Recognizer recognizer;
-  //TODO declare face recognizer
+
+  int delayTime = 0;
+
+  List<String> name_temp = [];
 
   @override
   void initState() {
@@ -40,29 +48,47 @@ class _RealtimeRecognitionScreenState extends State<RealtimeRecognitionScreen> {
             FaceDetectorOptions(performanceMode: FaceDetectorMode.accurate));
     recognizer = Recognizer();
 
-    //TODO initialize face recognizer
-
-    //TODO initialize camera footage
     _initializeCamera();
     _scanResults = [];
   }
 
+  Future _speak(List<String> names) async {
+    if (isSpeaking) return; // Nếu đang nói, không thực hiện thêm
+
+    isSpeaking = true;
+    await flutterTts.setLanguage("vi-VN");
+    for (String name in names) {
+      if (!name_temp.contains(name)) {
+        await flutterTts.speak("Xin chào $name");
+        name_temp = names;
+        await Future.delayed(Duration(seconds: 1)); // Delay between names
+      }
+    }
+    if (DateTime.now().difference(lastGreetTime).inSeconds > 10) {
+      name_temp.clear();
+      lastGreetTime = DateTime.now();
+    }
+    isSpeaking = false;
+  }
+
   //TODO code to initialize the camera feed
   Future<void> _initializeCamera() async {
+    int _frameCounter = 0;
+    const int processEveryNFrames = 5;
     cameras = await availableCameras();
-    controller = CameraController(description, ResolutionPreset.low);
+    controller = CameraController(description, ResolutionPreset.high);
     await controller.initialize().then((_) {
       if (!mounted) {
         return;
       }
       controller.startImageStream((image) {
-        if (!isBusy) {
-          isBusy = true;
-          Future.delayed(Duration(milliseconds: 100), () {
-            print("Face detection started");
+        _frameCounter++;
+        if (_frameCounter % processEveryNFrames == 0) {
+          if (!isBusy) {
+            isBusy = true;
             frame = image;
             doFaceDetectionOnFrame();
-          });
+          }
         }
       });
       setState(() {}); // Trigger a rebuild after camera initialization
@@ -85,15 +111,13 @@ class _RealtimeRecognitionScreenState extends State<RealtimeRecognitionScreen> {
       InputImage? inputImage = getInputImage();
       if (inputImage != null) {
         List<Face> faces = await detector.processImage(inputImage);
+        List<Recognition> recognitions = await performFaceRecognition(faces);
         setState(() {
-          _scanResults = faces;
+          _scanResults = recognitions;
         });
-        for (Face face in faces) {
-          print("Face detected at: ${face.boundingBox}");
-        }
-        // performFaceRecognition(faces);
-      } else
+      } else {
         print("null nha");
+      }
     } catch (e) {
       print("Error in face detection: $e");
     } finally {
@@ -107,31 +131,39 @@ class _RealtimeRecognitionScreenState extends State<RealtimeRecognitionScreen> {
   bool register = false;
   // TODO perform Face Recognition
 
-  // performFaceRecognition(List<Face> faces) async {
-  //   recognitions.clear();
+  Future<List<Recognition>> performFaceRecognition(List<Face> faces) async {
+    List<Recognition> recognitions = [];
+    List<String> recognizedNames = [];
 
-  //   //TODO convert CameraImage to Image and rotate it so that our frame will be in a portrait
-  //   image = convertYUV420ToImage(frame!);
-  //   image = img.copyRotate(image!,
-  //       angle: camDirec == CameraLensDirection.front ? 270 : 90);
+    image = convertYUV420ToImage(frame!);
+    image = img.copyRotate(image!,
+        angle: camDirec == CameraLensDirection.front ? 270 : 90);
 
-  //   for (Face face in faces) {
-  //     Rect faceRect = face.boundingBox;
-  //     //TODO crop face
-  //     img.Image croppedFace = img.copyCrop(image!,
-  //         x: faceRect.left.toInt(),
-  //         y: faceRect.top.toInt(),
-  //         width: faceRect.width.toInt(),
-  //         height: faceRect.height.toInt());
-      
-  //     Recognition recognition = recognizer.recognize(croppedFace, faceRect);
-  //     recognitions.add(recognition);
-  //     //TODO pass cropped face to face recognition model
+    for (Face face in faces) {
+      Rect faceRect = face.boundingBox;
+      img.Image croppedFace = img.copyCrop(image!,
+          x: faceRect.left.toInt(),
+          y: faceRect.top.toInt(),
+          width: faceRect.width.toInt(),
+          height: faceRect.height.toInt());
 
-  //     //TODO show face registration dialogue
-  //   }
-  //   print("recognitions-face-list: ${recognitions[0].name}");
-  // }
+      Recognition recognition = recognizer.recognize(croppedFace, faceRect);
+
+      if (recognition.name.toLowerCase() != "unknown") {
+        recognitions.add(recognition);
+        recognizedNames.add(recognition.name);
+      }
+    }
+
+    DateTime now = DateTime.now();
+    if (now.difference(_lastSpeechTime).inSeconds >= delayTime &&
+        recognizedNames.isNotEmpty) {
+      _speak(recognizedNames);
+      _lastSpeechTime = now;
+    }
+
+    return recognitions;
+  }
 
   img.Image convertYUV420ToImage(CameraImage cameraImage) {
     final width = cameraImage.width;
@@ -147,7 +179,7 @@ class _RealtimeRecognitionScreenState extends State<RealtimeRecognitionScreen> {
       for (var h = 0; h < height; h++) {
         final uvIndex =
             uvPixelStride * (w / 2).floor() + uvRowStride * (h / 2).floor();
-        final index = h * width + w;
+        // final index = h * width + w;
         final yIndex = h * yRowStride + w;
 
         final y = cameraImage.planes[0].bytes[yIndex];
@@ -220,7 +252,6 @@ class _RealtimeRecognitionScreenState extends State<RealtimeRecognitionScreen> {
     if (format == null ||
         (Platform.isAndroid && format != InputImageFormat.yuv_420_888) ||
         (Platform.isIOS && format != InputImageFormat.bgra8888)) {
-      print("Invalid format: $format");
       return null;
     }
 
@@ -252,22 +283,18 @@ class _RealtimeRecognitionScreenState extends State<RealtimeRecognitionScreen> {
         _scanResults.isEmpty ||
         controller == null ||
         !controller.value.isInitialized) {
-      print("scan: $_scanResults");
-      print("controller: $controller");
-      print(
-          "controller.value.isInitialized: ${controller.value.isInitialized}");
-      return const Center(
-          child: Text('Camera is not initialized or no faces detected.'));
+      return const Center(child: Text(''));
     }
     final Size imageSize = Size(
       controller.value.previewSize!.height,
       controller.value.previewSize!.width,
     );
-    CustomPainter painter =
-        FaceDetectorPainter(imageSize, _scanResults, camDirec);
+    CustomPainter painter = FaceDetectorPainter(
+        imageSize, _scanResults as List<Recognition>, camDirec);
     return CustomPaint(
       painter: painter,
     );
+    // return Container();
   }
 
   //TODO toggle camera direction
@@ -291,39 +318,60 @@ class _RealtimeRecognitionScreenState extends State<RealtimeRecognitionScreen> {
   Widget build(BuildContext context) {
     List<Widget> stackChildren = [];
     size = MediaQuery.of(context).size;
-    if (controller != null) {
-      //TODO View for displaying the live camera footage
+    if (controller != null && controller.value.isInitialized) {
+      double maxWidth = size.width * 0.4;
+      double maxHeight = size.height * 0.3;
+
+      double previewWidth = maxWidth;
+      double previewHeight = maxWidth * controller.value.aspectRatio;
+
+      if (previewHeight > maxHeight) {
+        previewHeight = maxHeight;
+        previewWidth = maxHeight / controller.value.aspectRatio;
+      }
+
       stackChildren.add(
         Positioned(
-          top: 0.0,
-          left: 0.0,
-          width: size.width,
-          height: size.height,
-          child: Container(
-            child: (controller.value.isInitialized)
-                ? AspectRatio(
-                    aspectRatio: controller.value.aspectRatio,
-                    child: CameraPreview(controller),
-                  )
-                : Container(),
+          top: 16.0, // Thêm padding từ cạnh trên
+          right: 16.0, // Thêm padding từ cạnh phải
+          width: previewWidth,
+          height: previewHeight,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8.0),
+            child: AspectRatio(
+              aspectRatio: controller.value.aspectRatio,
+              child: CameraPreview(controller),
+            ),
           ),
         ),
       );
 
-      //TODO View for displaying rectangles around detected aces
+      // View for displaying rectangles around detected faces
       stackChildren.add(
         Positioned(
-            top: 0.0,
-            left: 0.0,
-            width: size.width,
-            height: size.height,
-            child: buildResult()),
+          top: 16.0,
+          right: 16.0,
+          width: previewWidth,
+          height: previewHeight,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8.0),
+            child: buildResult(),
+          ),
+        ),
+      );
+
+      stackChildren.insert(
+        0,
+        Container(
+          color: Colors.white,
+          width: size.width,
+          height: size.height,
+        ),
       );
     }
-
     //TODO View for displaying the bar to switch camera direction or for registering faces
     stackChildren.add(Positioned(
-      top: size.height - 140,
+      bottom: 20,
       left: 0,
       width: size.width,
       height: 80,
@@ -389,7 +437,7 @@ class FaceDetectorPainter extends CustomPainter {
   FaceDetectorPainter(this.absoluteImageSize, this.facesList, this.camDire2);
 
   final Size absoluteImageSize;
-  final List<Face> facesList;
+  final List<Recognition> facesList;
   CameraLensDirection camDire2;
 
   @override
@@ -403,35 +451,36 @@ class FaceDetectorPainter extends CustomPainter {
       ..strokeWidth = 2.0
       ..color = Colors.green;
 
-    for (Face face in facesList) {
+    for (Recognition face in facesList) {
       canvas.drawRect(
         Rect.fromLTRB(
           camDire2 == CameraLensDirection.front
-              ? (absoluteImageSize.width - face.boundingBox.right) * scaleX
-              : face.boundingBox.left * scaleX,
-          face.boundingBox.top * scaleY,
+              ? (absoluteImageSize.width - face.location.right) * scaleX
+              : face.location.left * scaleX,
+          face.location.top * scaleY,
           camDire2 == CameraLensDirection.front
-              ? (absoluteImageSize.width - face.boundingBox.left) * scaleX
-              : face.boundingBox.right * scaleX,
-          face.boundingBox.bottom * scaleY,
+              ? (absoluteImageSize.width - face.location.left) * scaleX
+              : face.location.right * scaleX,
+          face.location.bottom * scaleY,
         ),
         paint,
       );
 
-    //   TextSpan span = TextSpan(
-    //       style: const TextStyle(color: Colors.white, fontSize: 20),
-    //       text: "${face.name}  ${face.distance.toStringAsFixed(2)}");
-    //   TextPainter tp = TextPainter(
-    //       text: span,
-    //       textAlign: TextAlign.left,
-    //       textDirection: TextDirection.ltr);
-    //   tp.layout();
-    //   tp.paint(canvas, Offset(face.location.left*scaleX, face.location.top*scaleY));
+      TextSpan span = TextSpan(
+          style: const TextStyle(color: Colors.white, fontSize: 20),
+          text: "${face.name}  ${face.distance.toStringAsFixed(2)}");
+      TextPainter tp = TextPainter(
+          text: span,
+          textAlign: TextAlign.left,
+          textDirection: TextDirection.ltr);
+      tp.layout();
+      tp.paint(canvas,
+          Offset(face.location.left * scaleX, face.location.top * scaleY));
     }
   }
 
   @override
   bool shouldRepaint(FaceDetectorPainter oldDelegate) {
-    return true;
+    return facesList.any((face) => face.name.toLowerCase() != "unknown");
   }
 }
