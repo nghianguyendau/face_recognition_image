@@ -12,6 +12,7 @@ class Recognizer {
   static const int WIDTH = 160;
   static const int HEIGHT = 160;
   final dbHelper = DatabaseHelper();
+  final threshold = 0.6;
   Map<String,Recognition> registered = Map();
   @override
   String get modelName => 'assets/model/facenet1.tflite';
@@ -124,14 +125,14 @@ class Recognizer {
   }
 
   Pair findNearestCosine(List<double> emb) {
-    Pair pair = Pair("Unknown", 0.7); //TODO threshold
+    Pair pair = Pair("Unknown", threshold); //TODO threshold
     for (MapEntry<String, Recognition> item in registered.entries) {
       final String name = item.key;
       List<double> knownEmb = item.value.embeddings;
       double similarity = cosineSimilarity(emb, knownEmb);
 
       print(similarity > pair.distance);
-      if (similarity == 0.7 || similarity > pair.distance) {      
+      if (similarity == threshold || similarity > pair.distance) {      
         pair.distance = similarity;
         pair.name = name;
       }
