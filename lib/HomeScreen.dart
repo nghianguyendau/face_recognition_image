@@ -1,4 +1,5 @@
 
+import 'package:face_recognition_with_images/SyncScreen.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
@@ -30,11 +31,18 @@ class _HomePageState extends State<HomeScreen> {
                     Navigator.push(context, MaterialPageRoute(builder: (context)=>const RegistrationScreen()));
                 },
                   style: ElevatedButton.styleFrom(minimumSize: Size(screenWidth-30, 50)), child: const Text("Register"),),
+
                 Container(height: 20,),
+
                 ElevatedButton(onPressed: (){
                   Navigator.push(context, MaterialPageRoute(builder: (context)=>const RecognitionScreen()));
                 },
                   style: ElevatedButton.styleFrom(minimumSize: Size(screenWidth-30, 50)), child: const Text("Recognize"),),
+                Container(height: 20,),
+                ElevatedButton(onPressed: (){
+                  Navigator.push(context, MaterialPageRoute(builder: (context)=>const SyncScreen()));
+                },
+                  style: ElevatedButton.styleFrom(minimumSize: Size(screenWidth-30, 50)), child: const Text("SyncScreen"),),
               ],
             ),
           ),

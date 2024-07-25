@@ -1,8 +1,15 @@
+import 'dart:io';
+
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path_provider/path_provider.dart';
 
 class DatabaseHelper {
+  DatabaseHelper.internal();
+  static final DatabaseHelper instance = new DatabaseHelper.internal();
+  factory DatabaseHelper() => instance;
+
+
   static const _databaseName = "MyDatabase.db";
   static const _databaseVersion = 1;
 
@@ -11,6 +18,7 @@ class DatabaseHelper {
   static const columnId = 'id';
   static const columnName = 'name';
   static const columnEmbedding = 'embedding';
+  static final _version = 1;
 
   late Database _db;
 
@@ -27,6 +35,11 @@ class DatabaseHelper {
 
   // SQL code to create the database table
   Future _onCreate(Database db, int version) async {
+    Directory directory = await getApplicationDocumentsDirectory();
+    String dbPath = join(directory.path,'syncdatabase.db');
+    print(dbPath);
+    var openDb = await openDatabase(dbPath,version: _version,
+    onCreate: (Database db,int version)async{
     await db.execute('''
           CREATE TABLE $table (
             $columnId INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -34,7 +47,17 @@ class DatabaseHelper {
             $columnEmbedding TEXT NOT NULL
           )
           ''');
+    },
+    onUpgrade: (Database db, int oldversion,int newversion)async{
+      if (oldversion<newversion) {
+        print("Version Upgrade");
+      }
+    }
+    );
+    print('db initialize');
+    return openDb;
   }
+        
 
   // Helper methods
 
